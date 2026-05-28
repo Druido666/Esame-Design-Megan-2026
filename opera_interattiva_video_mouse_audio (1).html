@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Opera Interattiva Video + Mouse + Audio</title>
+
+<style>
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
+    body {
+        overflow: hidden;
+        background: black;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        cursor: crosshair;
+        font-family: Arial, sans-serif;
+    }
+
+    #container {
+        position: relative;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        perspective: 1200px;
+        overflow: hidden;
+    }
+
+    video {
+        width: 60vw;
+        max-width: 900px;
+        border-radius: 20px;
+        transition: transform 0.08s linear, filter 0.2s ease;
+        transform-style: preserve-3d;
+        box-shadow: 0 0 40px rgba(255,255,255,0.15);
+        filter: contrast(1.1) saturate(1.2);
+    }
+
+    #overlay {
+        position: absolute;
+        top: 20px;
+        left: 20px;
+        color: white;
+        z-index: 10;
+        font-size: 14px;
+        opacity: 0.8;
+        letter-spacing: 1px;
+    }
+
+    .pulse {
+        animation: pulse 0.4s ease;
+    }
+
+    @keyframes pulse {
+        0% {
+            transform: scale(1);
+        }
+        50% {
+            transform: scale(1.03);
+        }
+        100% {
+            transform: scale(1);
+        }
+    }
+
+    canvas {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        mix-blend-mode: screen;
+    }
+</style>
+</head>
+<body>
+
+<div id="container">
+
+    <div id="overlay">
+        MUOVI IL MOUSE · CLICCA PER ATTIVARE AUDIO
+    </div>
+
+    <canvas id="visualizer"></canvas>
+
+    <video id="video" autoplay muted loop playsinline>
+        <source src="VIDEO-2026-04-22-16-03-51.mov" type="video/mp4">
+    </video>
+
+</div>
+
+<script>
+const video = document.getElementById('video');
+const canvas = document.getElementById('visualizer');
+const ctx = canvas.getContext('2d');
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+let mouseX = window.innerWidth / 2;
+let mouseY = window.innerHeight / 2;
+
+let currentRotateY = 0;
+let currentRotateX = 0;
+
+// AUDIO REATTIVO
+const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+const analyser = audioContext.createAnalyser();
+analyser.fftSize = 256;
+
+const source = audioContext.createMediaElementSource(video);
+source.connect(analyser);
+analyser.connect(audioContext.destination);
+
+const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+let audioStarted = false;
+
+window.addEventListener('click', async () => {
+
+    if (!audioStarted) {
+        video.muted = false;
+        await audioContext.resume();
+        video.play();
+        audioStarted = true;
+    }
+
+    video.classList.add('pulse');
+
+    setTimeout(() => {
+        video.classList.remove('pulse');
+    }, 400);
+
+});
+
+window.addEventListener('mousemove', (e) => {
+
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+
+    const centerX = window.innerWidth / 2;
+    const centerY = window.innerHeight / 2;
+
+    const deltaX = mouseX - centerX;
+    const deltaY = mouseY - centerY;
+
+    // ROTAZIONE DINAMICA SEGUENDO IL MOUSE
+    currentRotateY = deltaX * 0.05;
+    currentRotateX = -deltaY * 0.05;
+
+    // MOVIMENTO FISICO NELLO SPAZIO
+    const moveX = deltaX * 0.08;
+    const moveY = deltaY * 0.08;
+
+    // DISTORSIONE INTERATTIVA
+    const scale = 1 + Math.abs(deltaX + deltaY) * 0.00015;
+
+    video.style.transform = `
+        translateX(${moveX}px)
+        translateY(${moveY}px)
+        rotateX(${currentRotateX}deg)
+        rotateY(${currentRotateY}deg)
+        rotateZ(${deltaX * 0.015}deg)
+        scale(${scale})
+    `;
+
+    // FILTRI AUDIOVISIVI REATTIVI
+    const blur = Math.abs(deltaX) * 0.008;
+    const brightness = 1 + Math.abs(deltaY) * 0.0008;
+
+    video.style.filter = `
+        contrast(1.4)
+        saturate(1.6)
+        brightness(${brightness})
+        blur(${blur}px)
+        hue-rotate(${deltaX * 0.08}deg)
+    `;
+
+    // SFONDO REATTIVO
+    document.body.style.background = `radial-gradient(circle at ${mouseX}px ${mouseY}px,
+    rgba(40,40,60,1),
+    rgba(0,0,0,1) 60%)`;
+
+});
+
+function animateVisualizer() {
+
+    requestAnimationFrame(animateVisualizer);
+
+    analyser.getByteFrequencyData(dataArray);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const bars = dataArray.length;
+
+    for (let i = 0; i < bars; i++) {
+
+        const value = dataArray[i];
+
+        const x = (canvas.width / bars) * i;
+
+        const height = value * 1.8;
+
+        ctx.fillStyle = `rgba(${value + 50}, ${100 + value}, 255, 0.15)`;
+
+        ctx.fillRect(
+            x,
+            canvas.height - height,
+            8,
+            height
+        );
+
+        ctx.beginPath();
+
+        ctx.arc(
+            canvas.width / 2,
+            canvas.height / 2,
+            value * 1.5,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.strokeStyle = `rgba(255,255,255,0.02)`;
+        ctx.stroke();
+    }
+}
+
+animateVisualizer();
+
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+});
+
+video.play();
+</script>
+
+</body>
+</html>
