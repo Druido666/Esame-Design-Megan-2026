@@ -1,247 +1,371 @@
 <!DOCTYPE html>
 <html lang="it">
-<head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Opera Interattiva Video + Mouse + Audio</title>
 
-<style>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Opera Interattiva Video + Mouse + Audio</title>
+
+  <style>
     * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+    }
+
+    html, body {
+      overflow: hidden;
+      background: black;
+      width: 100%;
+      height: 100%;
+      height: -webkit-fill-available;
     }
 
     body {
-        overflow: hidden;
-        background: black;
-        width: 100vw;
-        height: 100vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        cursor: crosshair;
-        font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      cursor: crosshair;
+      font-family: Arial, sans-serif;
     }
 
     #container {
-        position: relative;
-        width: 100vw;
-        height: 100vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        perspective: 1200px;
-        overflow: hidden;
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      height: -webkit-fill-available;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      perspective: 1200px;
+      overflow: hidden;
     }
 
     video {
-        width: 60vw;
-        max-width: 900px;
-        border-radius: 20px;
-        transition: transform 0.08s linear, filter 0.2s ease;
-        transform-style: preserve-3d;
-        box-shadow: 0 0 40px rgba(255,255,255,0.15);
-        filter: contrast(1.1) saturate(1.2);
+      width: 60vw;
+      max-width: 900px;
+      /* Su mobile occupa più spazio */
+      min-width: min(80vw, 320px);
+      border-radius: 20px;
+      transition: transform 0.08s linear, filter 0.2s ease;
+      transform-style: preserve-3d;
+      box-shadow: 0 0 40px rgba(255, 255, 255, 0.15);
+      filter: contrast(1.1) saturate(1.2);
+      /* Disabilita gesture browser native sul video */
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* Nasconde tutti i controlli video nativi */
+    video::-webkit-media-controls,
+    video::-webkit-media-controls-panel,
+    video::-webkit-media-controls-play-button,
+    video::-webkit-media-controls-start-playback-button,
+    video::-webkit-media-controls-overlay-play-button,
+    video::-webkit-media-controls-enclosure,
+    video::-webkit-media-controls-panel-container,
+    video::-webkit-media-controls-current-time-display,
+    video::-webkit-media-controls-time-remaining-display,
+    video::-webkit-media-controls-fullscreen-button {
+      display: none !important;
+      -webkit-appearance: none !important;
+      opacity: 0 !important;
+      pointer-events: none !important;
     }
 
     #overlay {
-        position: absolute;
-        top: 20px;
-        left: 20px;
-        color: white;
-        z-index: 10;
-        font-size: 14px;
-        opacity: 0.8;
-        letter-spacing: 1px;
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      color: white;
+      z-index: 10;
+      font-size: 13px;
+      opacity: 0.8;
+      letter-spacing: 1px;
+      pointer-events: none;
+      /* Su mobile mostra testo diverso */
+      display: none;
+    }
+
+    #overlay.desktop {
+      display: block;
+    }
+
+    #overlay-mobile {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: white;
+      z-index: 10;
+      font-size: 13px;
+      opacity: 0.8;
+      letter-spacing: 1px;
+      pointer-events: none;
+      text-align: center;
+      white-space: nowrap;
+      display: none;
+    }
+
+    #overlay-mobile.mobile {
+      display: block;
+    }
+
+    /* Pulsante tap-to-start visibile solo su mobile */
+    #tap-hint {
+      position: absolute;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: rgba(255,255,255,0.6);
+      font-size: 12px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      pointer-events: none;
+      z-index: 10;
+      animation: blink 2s ease-in-out infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 0.1; }
     }
 
     .pulse {
-        animation: pulse 0.4s ease;
+      animation: pulse 0.4s ease;
     }
 
     @keyframes pulse {
-        0% {
-            transform: scale(1);
-        }
-        50% {
-            transform: scale(1.03);
-        }
-        100% {
-            transform: scale(1);
-        }
+      0%   { transform: scale(1); }
+      50%  { transform: scale(1.03); }
+      100% { transform: scale(1); }
     }
 
     canvas {
-        position: absolute;
-        width: 100%;
-        height: 100%;
-        pointer-events: none;
-        mix-blend-mode: screen;
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      mix-blend-mode: screen;
     }
-</style>
+  </style>
 </head>
+
 <body>
 
-<div id="container">
+  <div id="container">
 
-    <div id="overlay">
-        MUOVI IL MOUSE · CLICCA PER ATTIVARE AUDIO
-    </div>
+    <div id="overlay">MUOVI IL MOUSE · CLICCA PER ATTIVARE AUDIO</div>
+    <div id="overlay-mobile">MUOVI IL DITO · TOCCA PER ATTIVARE AUDIO</div>
+    <div id="tap-hint">TOCCA PER INIZIARE</div>
 
     <canvas id="visualizer"></canvas>
 
-    <video id="video" autoplay muted loop playsinline>
-        <source src="VIDEO-2026-04-22-16-03-51.mp4" type="video/mp4">
+    <video id="video" autoplay muted loop playsinline webkit-playsinline>
+      <source src="VIDEO-2026-04-22-16-03-51.mp4" type="video/mp4">
     </video>
 
-</div>
+  </div>
 
-<script>
-const video = document.getElementById('video');
-const canvas = document.getElementById('visualizer');
-const ctx = canvas.getContext('2d');
+  <script>
+    // ─── Elementi ───────────────────────────────────────────────
+    const video      = document.getElementById('video');
+    const canvas     = document.getElementById('visualizer');
+    const ctx        = canvas.getContext('2d');
+    const tapHint    = document.getElementById('tap-hint');
 
-canvas.width = window.innerWidth;
-canvas.height = window.innerHeight;
+    // ─── Rilevamento mobile/desktop ─────────────────────────────
+    const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
 
-let mouseX = window.innerWidth / 2;
-let mouseY = window.innerHeight / 2;
-
-let currentRotateY = 0;
-let currentRotateX = 0;
-
-// AUDIO REATTIVO
-const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-const analyser = audioContext.createAnalyser();
-analyser.fftSize = 256;
-
-const source = audioContext.createMediaElementSource(video);
-source.connect(analyser);
-analyser.connect(audioContext.destination);
-
-const dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-let audioStarted = false;
-
-window.addEventListener('click', async () => {
-
-    if (!audioStarted) {
-        video.muted = false;
-        await audioContext.resume();
-        video.play();
-        audioStarted = true;
+    if (isMobile) {
+      document.getElementById('overlay-mobile').classList.add('mobile');
+      document.body.style.cursor = 'none'; // nessun cursore su touch
+    } else {
+      document.getElementById('overlay').classList.add('desktop');
+      tapHint.style.display = 'none';
     }
 
-    video.classList.add('pulse');
+    // ─── Canvas ─────────────────────────────────────────────────
+    function resizeCanvas() {
+      canvas.width  = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
 
-    setTimeout(() => {
-        video.classList.remove('pulse');
-    }, 400);
+    // ─── Audio Context ──────────────────────────────────────────
+    let audioContext   = null;
+    let analyser       = null;
+    let dataArray      = null;
+    let audioStarted   = false;
 
-});
+    function initAudio() {
+      if (audioStarted) return;
 
-window.addEventListener('mousemove', (e) => {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      analyser     = audioContext.createAnalyser();
+      analyser.fftSize = 256;
 
-    mouseX = e.clientX;
-    mouseY = e.clientY;
+      const source = audioContext.createMediaElementSource(video);
+      source.connect(analyser);
+      analyser.connect(audioContext.destination);
 
-    const centerX = window.innerWidth / 2;
-    const centerY = window.innerHeight / 2;
+      dataArray = new Uint8Array(analyser.frequencyBinCount);
 
-    const deltaX = mouseX - centerX;
-    const deltaY = mouseY - centerY;
+      video.muted = false;
+      audioContext.resume().then(() => {
+        video.play().catch(() => {});
+      });
 
-    // ROTAZIONE DINAMICA SEGUENDO IL MOUSE
-    currentRotateY = deltaX * 0.05;
-    currentRotateX = -deltaY * 0.05;
+      audioStarted = true;
+      tapHint.style.display = 'none';
+    }
 
-    // MOVIMENTO FISICO NELLO SPAZIO
-    const moveX = deltaX * 0.08;
-    const moveY = deltaY * 0.08;
+    // ─── Trasformazione video ────────────────────────────────────
+    function handleMove(x, y) {
+      const centerX = window.innerWidth  / 2;
+      const centerY = window.innerHeight / 2;
 
-    // DISTORSIONE INTERATTIVA
-    const scale = 1 + Math.abs(deltaX + deltaY) * 0.00015;
+      const deltaX = x - centerX;
+      const deltaY = y - centerY;
 
-    video.style.transform = `
+      const moveX       = deltaX * 0.08;
+      const moveY       = deltaY * 0.08;
+      const scale       = 1 + Math.abs(deltaX + deltaY) * 0.00015;
+      const rotateY     = deltaX * 0.05;
+      const rotateX     = -deltaY * 0.05;
+
+      video.style.transform = `
         translateX(${moveX}px)
         translateY(${moveY}px)
-        rotateX(${currentRotateX}deg)
-        rotateY(${currentRotateY}deg)
+        rotateX(${rotateX}deg)
+        rotateY(${rotateY}deg)
         rotateZ(${deltaX * 0.015}deg)
         scale(${scale})
-    `;
+      `;
 
-    // FILTRI AUDIOVISIVI REATTIVI
-    const blur = Math.abs(deltaX) * 0.008;
-    const brightness = 1 + Math.abs(deltaY) * 0.0008;
+      const blur       = Math.abs(deltaX) * 0.008;
+      const brightness = 1 + Math.abs(deltaY) * 0.0008;
 
-    video.style.filter = `
+      video.style.filter = `
         contrast(1.4)
         saturate(1.6)
         brightness(${brightness})
         blur(${blur}px)
         hue-rotate(${deltaX * 0.08}deg)
-    `;
+      `;
 
-    // SFONDO REATTIVO
-    document.body.style.background = `radial-gradient(circle at ${mouseX}px ${mouseY}px,
-    rgba(40,40,60,1),
-    rgba(0,0,0,1) 60%)`;
+      document.body.style.background = `
+        radial-gradient(circle at ${x}px ${y}px,
+        rgba(40,40,60,1), rgba(0,0,0,1) 60%)
+      `;
+    }
 
-});
+    // ─── Pulse on tap/click ──────────────────────────────────────
+    function triggerPulse() {
+      video.classList.add('pulse');
+      setTimeout(() => video.classList.remove('pulse'), 400);
+    }
 
-function animateVisualizer() {
+    // ─── MOUSE (desktop) ─────────────────────────────────────────
+    window.addEventListener('mousemove', (e) => {
+      handleMove(e.clientX, e.clientY);
+    });
 
-    requestAnimationFrame(animateVisualizer);
+    window.addEventListener('click', () => {
+      initAudio();
+      triggerPulse();
+    });
 
-    analyser.getByteFrequencyData(dataArray);
+    // ─── TOUCH (mobile) ──────────────────────────────────────────
+    // Tracciamo l'ultimo punto di tocco per il movimento continuo
+    let lastTouchX = window.innerWidth  / 2;
+    let lastTouchY = window.innerHeight / 2;
+    let touchActive = false;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // touchstart: attiva audio e registra punto iniziale
+    window.addEventListener('touchstart', (e) => {
+      e.preventDefault(); // blocca scroll e zoom browser
 
-    const bars = dataArray.length;
+      initAudio();
 
-    for (let i = 0; i < bars; i++) {
+      const touch = e.touches[0];
+      lastTouchX  = touch.clientX;
+      lastTouchY  = touch.clientY;
+      touchActive = true;
 
-        const value = dataArray[i];
+      handleMove(lastTouchX, lastTouchY);
+    }, { passive: false });
 
-        const x = (canvas.width / bars) * i;
+    // touchmove: muove il video
+    window.addEventListener('touchmove', (e) => {
+      e.preventDefault();
 
+      if (!touchActive) return;
+
+      const touch = e.touches[0];
+      lastTouchX  = touch.clientX;
+      lastTouchY  = touch.clientY;
+
+      handleMove(lastTouchX, lastTouchY);
+    }, { passive: false });
+
+    // touchend: breve tap → pulse; rilascia il touch
+    window.addEventListener('touchend', (e) => {
+      e.preventDefault();
+
+      const wasTap = e.changedTouches.length === 1;
+      if (wasTap) triggerPulse();
+
+      touchActive = false;
+    }, { passive: false });
+
+    // touchcancel: resetta stato
+    window.addEventListener('touchcancel', () => {
+      touchActive = false;
+    });
+
+    // ─── Visualizer ──────────────────────────────────────────────
+    function animateVisualizer() {
+      requestAnimationFrame(animateVisualizer);
+
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Se audio non ancora avviato, disegna anelli quiescienti
+      const data = dataArray || new Uint8Array(128).fill(0);
+      if (analyser) analyser.getByteFrequencyData(data);
+
+      const bars = data.length;
+
+      for (let i = 0; i < bars; i++) {
+        const value = data[i];
+        const x     = (canvas.width / bars) * i;
         const height = value * 1.8;
 
         ctx.fillStyle = `rgba(${value + 50}, ${100 + value}, 255, 0.15)`;
-
-        ctx.fillRect(
-            x,
-            canvas.height - height,
-            8,
-            height
-        );
+        ctx.fillRect(x, canvas.height - height, 8, height);
 
         ctx.beginPath();
-
         ctx.arc(
-            canvas.width / 2,
-            canvas.height / 2,
-            value * 1.5,
-            0,
-            Math.PI * 2
+          canvas.width  / 2,
+          canvas.height / 2,
+          value * 1.5,
+          0,
+          Math.PI * 2
         );
-
-        ctx.strokeStyle = `rgba(255,255,255,0.02)`;
+        ctx.strokeStyle = 'rgba(255,255,255,0.02)';
         ctx.stroke();
+      }
     }
-}
 
-animateVisualizer();
+    animateVisualizer();
 
-window.addEventListener('resize', () => {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-});
-
-video.play();
-</script>
+    // ─── Avvio video (muted, per autoplay policy) ─────────────────
+    video.play().catch(() => {});
+  </script>
 
 </body>
 </html>
