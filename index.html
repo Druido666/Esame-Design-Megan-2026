@@ -3,75 +3,76 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0" />
   <title>Opera Interattiva Video + Mouse + Audio</title>
 
   <style>
-    * {
+    *, *::before, *::after {
       margin: 0;
       padding: 0;
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
-      touch-action: none;
     }
 
-    html, body {
+    html {
+      overflow: hidden;
+      height: 100%;
+    }
+
+    body {
       overflow: hidden;
       background: black;
       width: 100%;
       height: 100%;
       height: -webkit-fill-available;
-    }
-
-    body {
       display: flex;
       justify-content: center;
       align-items: center;
       cursor: crosshair;
       font-family: Arial, sans-serif;
+      /* impedisce scroll su iOS */
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
     }
 
     #container {
-      position: relative;
-      width: 100vw;
-      height: 100vh;
-      height: -webkit-fill-available;
+      position: absolute;
+      inset: 0;
       display: flex;
       justify-content: center;
       align-items: center;
       perspective: 1200px;
       overflow: hidden;
+      /* FONDAMENTALE: cattura tutti gli eventi touch */
+      touch-action: none;
     }
 
     video {
       width: 60vw;
       max-width: 900px;
-      /* Su mobile occupa più spazio */
-      min-width: min(80vw, 320px);
+      min-width: min(80vw, 280px);
       border-radius: 20px;
-      transition: transform 0.08s linear, filter 0.2s ease;
-      transform-style: preserve-3d;
       box-shadow: 0 0 40px rgba(255, 255, 255, 0.15);
       filter: contrast(1.1) saturate(1.2);
-      /* Disabilita gesture browser native sul video */
+      transform-style: preserve-3d;
+      will-change: transform, filter;
+      /* non bloccare gli eventi sul video stesso */
       pointer-events: none;
       user-select: none;
       -webkit-user-select: none;
+      /* nessuna transition: la aggiorniamo via JS per fluidità */
     }
 
-    /* Nasconde tutti i controlli video nativi */
     video::-webkit-media-controls,
     video::-webkit-media-controls-panel,
     video::-webkit-media-controls-play-button,
     video::-webkit-media-controls-start-playback-button,
     video::-webkit-media-controls-overlay-play-button,
-    video::-webkit-media-controls-enclosure,
-    video::-webkit-media-controls-panel-container,
-    video::-webkit-media-controls-current-time-display,
-    video::-webkit-media-controls-time-remaining-display,
-    video::-webkit-media-controls-fullscreen-button {
+    video::-webkit-media-controls-enclosure {
       display: none !important;
-      -webkit-appearance: none !important;
       opacity: 0 !important;
       pointer-events: none !important;
     }
@@ -86,35 +87,8 @@
       opacity: 0.8;
       letter-spacing: 1px;
       pointer-events: none;
-      /* Su mobile mostra testo diverso */
-      display: none;
     }
 
-    #overlay.desktop {
-      display: block;
-    }
-
-    #overlay-mobile {
-      position: absolute;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      color: white;
-      z-index: 10;
-      font-size: 13px;
-      opacity: 0.8;
-      letter-spacing: 1px;
-      pointer-events: none;
-      text-align: center;
-      white-space: nowrap;
-      display: none;
-    }
-
-    #overlay-mobile.mobile {
-      display: block;
-    }
-
-    /* Pulsante tap-to-start visibile solo su mobile */
     #tap-hint {
       position: absolute;
       bottom: 40px;
@@ -131,11 +105,11 @@
 
     @keyframes blink {
       0%, 100% { opacity: 0.6; }
-      50% { opacity: 0.1; }
+      50%       { opacity: 0.1; }
     }
 
     .pulse {
-      animation: pulse 0.4s ease;
+      animation: pulse 0.4s ease !important;
     }
 
     @keyframes pulse {
@@ -146,6 +120,7 @@
 
     canvas {
       position: absolute;
+      inset: 0;
       width: 100%;
       height: 100%;
       pointer-events: none;
@@ -157,38 +132,22 @@
 <body>
 
   <div id="container">
-
-    <div id="overlay">MUOVI IL MOUSE · CLICCA PER ATTIVARE AUDIO</div>
-    <div id="overlay-mobile">MUOVI IL DITO · TOCCA PER ATTIVARE AUDIO</div>
+    <div id="overlay">MUOVI · TOCCA PER AUDIO</div>
     <div id="tap-hint">TOCCA PER INIZIARE</div>
-
     <canvas id="visualizer"></canvas>
-
-    <video id="video" autoplay muted loop playsinline webkit-playsinline>
+    <video id="video" autoplay muted loop playsinline webkit-playsinline x5-playsinline>
       <source src="VIDEO-2026-04-22-16-03-51.mp4" type="video/mp4">
     </video>
-
   </div>
 
   <script>
-    // ─── Elementi ───────────────────────────────────────────────
-    const video      = document.getElementById('video');
-    const canvas     = document.getElementById('visualizer');
-    const ctx        = canvas.getContext('2d');
-    const tapHint    = document.getElementById('tap-hint');
+    const video   = document.getElementById('video');
+    const canvas  = document.getElementById('visualizer');
+    const ctx     = canvas.getContext('2d');
+    const tapHint = document.getElementById('tap-hint');
+    const container = document.getElementById('container');
 
-    // ─── Rilevamento mobile/desktop ─────────────────────────────
-    const isMobile = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-
-    if (isMobile) {
-      document.getElementById('overlay-mobile').classList.add('mobile');
-      document.body.style.cursor = 'none'; // nessun cursore su touch
-    } else {
-      document.getElementById('overlay').classList.add('desktop');
-      tapHint.style.display = 'none';
-    }
-
-    // ─── Canvas ─────────────────────────────────────────────────
+    // ── Resize canvas ─────────────────────────────────────────────
     function resizeCanvas() {
       canvas.width  = window.innerWidth;
       canvas.height = window.innerHeight;
@@ -196,66 +155,62 @@
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
 
-    // ─── Audio Context ──────────────────────────────────────────
-    let audioContext   = null;
-    let analyser       = null;
-    let dataArray      = null;
-    let audioStarted   = false;
+    // ── Audio ─────────────────────────────────────────────────────
+    let audioCtx     = null;
+    let analyser     = null;
+    let dataArray    = null;
+    let audioStarted = false;
 
     function initAudio() {
       if (audioStarted) return;
+      audioStarted = true;
+      tapHint.style.display = 'none';
 
-      audioContext = new (window.AudioContext || window.webkitAudioContext)();
-      analyser     = audioContext.createAnalyser();
+      audioCtx  = new (window.AudioContext || window.webkitAudioContext)();
+      analyser  = audioCtx.createAnalyser();
       analyser.fftSize = 256;
 
-      const source = audioContext.createMediaElementSource(video);
-      source.connect(analyser);
-      analyser.connect(audioContext.destination);
-
+      const src = audioCtx.createMediaElementSource(video);
+      src.connect(analyser);
+      analyser.connect(audioCtx.destination);
       dataArray = new Uint8Array(analyser.frequencyBinCount);
 
       video.muted = false;
-      audioContext.resume().then(() => {
-        video.play().catch(() => {});
-      });
-
-      audioStarted = true;
-      tapHint.style.display = 'none';
+      audioCtx.resume().then(() => video.play().catch(() => {}));
     }
 
-    // ─── Trasformazione video ────────────────────────────────────
-    function handleMove(x, y) {
-      const centerX = window.innerWidth  / 2;
-      const centerY = window.innerHeight / 2;
+    // ── Transform ─────────────────────────────────────────────────
+    const W = () => window.innerWidth;
+    const H = () => window.innerHeight;
 
-      const deltaX = x - centerX;
-      const deltaY = y - centerY;
+    function applyTransform(x, y) {
+      const dx = x - W() / 2;
+      const dy = y - H() / 2;
 
-      const moveX       = deltaX * 0.08;
-      const moveY       = deltaY * 0.08;
-      const scale       = 1 + Math.abs(deltaX + deltaY) * 0.00015;
-      const rotateY     = deltaX * 0.05;
-      const rotateX     = -deltaY * 0.05;
+      const moveX   = dx * 0.08;
+      const moveY   = dy * 0.08;
+      const scale   = 1 + Math.abs(dx + dy) * 0.00015;
+      const rotateY = dx * 0.05;
+      const rotateX = -dy * 0.05;
+      const rotateZ = dx * 0.015;
+      const blur      = Math.abs(dx) * 0.008;
+      const brightness = 1 + Math.abs(dy) * 0.0008;
 
       video.style.transform = `
         translateX(${moveX}px)
         translateY(${moveY}px)
         rotateX(${rotateX}deg)
         rotateY(${rotateY}deg)
-        rotateZ(${deltaX * 0.015}deg)
+        rotateZ(${rotateZ}deg)
         scale(${scale})
       `;
-
-      const blur       = Math.abs(deltaX) * 0.008;
-      const brightness = 1 + Math.abs(deltaY) * 0.0008;
 
       video.style.filter = `
         contrast(1.4)
         saturate(1.6)
         brightness(${brightness})
         blur(${blur}px)
-        hue-rotate(${deltaX * 0.08}deg)
+        hue-rotate(${dx * 0.08}deg)
       `;
 
       document.body.style.background = `
@@ -264,15 +219,17 @@
       `;
     }
 
-    // ─── Pulse on tap/click ──────────────────────────────────────
+    // ── Pulse ─────────────────────────────────────────────────────
     function triggerPulse() {
+      video.classList.remove('pulse');
+      void video.offsetWidth; // reflow per riavviare animazione
       video.classList.add('pulse');
       setTimeout(() => video.classList.remove('pulse'), 400);
     }
 
-    // ─── MOUSE (desktop) ─────────────────────────────────────────
+    // ── MOUSE ─────────────────────────────────────────────────────
     window.addEventListener('mousemove', (e) => {
-      handleMove(e.clientX, e.clientY);
+      applyTransform(e.clientX, e.clientY);
     });
 
     window.addEventListener('click', () => {
@@ -280,90 +237,77 @@
       triggerPulse();
     });
 
-    // ─── TOUCH (mobile) ──────────────────────────────────────────
-    // Tracciamo l'ultimo punto di tocco per il movimento continuo
-    let lastTouchX = window.innerWidth  / 2;
-    let lastTouchY = window.innerHeight / 2;
-    let touchActive = false;
+    // ── TOUCH ─────────────────────────────────────────────────────
+    // Usiamo PointerEvents dove disponibili (più affidabili su mobile),
+    // con fallback agli eventi Touch classici.
 
-    // touchstart: attiva audio e registra punto iniziale
-    window.addEventListener('touchstart', (e) => {
-      e.preventDefault(); // blocca scroll e zoom browser
+    if (window.PointerEvent) {
 
-      initAudio();
+      // PointerEvents: gestisce mouse, touch e stylus unificati
+      container.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        container.setPointerCapture(e.pointerId); // cattura tutti i move anche fuori
+        initAudio();
+        applyTransform(e.clientX, e.clientY);
+      }, { passive: false });
 
-      const touch = e.touches[0];
-      lastTouchX  = touch.clientX;
-      lastTouchY  = touch.clientY;
-      touchActive = true;
+      container.addEventListener('pointermove', (e) => {
+        e.preventDefault();
+        if (e.buttons === 0 && e.pointerType === 'touch') return;
+        applyTransform(e.clientX, e.clientY);
+      }, { passive: false });
 
-      handleMove(lastTouchX, lastTouchY);
-    }, { passive: false });
+      container.addEventListener('pointerup', (e) => {
+        e.preventDefault();
+        triggerPulse();
+      }, { passive: false });
 
-    // touchmove: muove il video
-    window.addEventListener('touchmove', (e) => {
-      e.preventDefault();
+    } else {
 
-      if (!touchActive) return;
+      // Fallback Touch Events (Safari vecchio, Android base)
+      container.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        initAudio();
+        const t = e.touches[0];
+        applyTransform(t.clientX, t.clientY);
+      }, { passive: false });
 
-      const touch = e.touches[0];
-      lastTouchX  = touch.clientX;
-      lastTouchY  = touch.clientY;
+      container.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const t = e.touches[0];
+        applyTransform(t.clientX, t.clientY);
+      }, { passive: false });
 
-      handleMove(lastTouchX, lastTouchY);
-    }, { passive: false });
+      container.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        triggerPulse();
+      }, { passive: false });
+    }
 
-    // touchend: breve tap → pulse; rilascia il touch
-    window.addEventListener('touchend', (e) => {
-      e.preventDefault();
-
-      const wasTap = e.changedTouches.length === 1;
-      if (wasTap) triggerPulse();
-
-      touchActive = false;
-    }, { passive: false });
-
-    // touchcancel: resetta stato
-    window.addEventListener('touchcancel', () => {
-      touchActive = false;
-    });
-
-    // ─── Visualizer ──────────────────────────────────────────────
+    // ── Visualizer ────────────────────────────────────────────────
     function animateVisualizer() {
       requestAnimationFrame(animateVisualizer);
-
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Se audio non ancora avviato, disegna anelli quiescienti
       const data = dataArray || new Uint8Array(128).fill(0);
       if (analyser) analyser.getByteFrequencyData(data);
 
-      const bars = data.length;
+      for (let i = 0; i < data.length; i++) {
+        const v = data[i];
+        const x = (canvas.width / data.length) * i;
+        const h = v * 1.8;
 
-      for (let i = 0; i < bars; i++) {
-        const value = data[i];
-        const x     = (canvas.width / bars) * i;
-        const height = value * 1.8;
-
-        ctx.fillStyle = `rgba(${value + 50}, ${100 + value}, 255, 0.15)`;
-        ctx.fillRect(x, canvas.height - height, 8, height);
+        ctx.fillStyle = `rgba(${v + 50}, ${100 + v}, 255, 0.15)`;
+        ctx.fillRect(x, canvas.height - h, 8, h);
 
         ctx.beginPath();
-        ctx.arc(
-          canvas.width  / 2,
-          canvas.height / 2,
-          value * 1.5,
-          0,
-          Math.PI * 2
-        );
+        ctx.arc(canvas.width / 2, canvas.height / 2, v * 1.5, 0, Math.PI * 2);
         ctx.strokeStyle = 'rgba(255,255,255,0.02)';
         ctx.stroke();
       }
     }
 
     animateVisualizer();
-
-    // ─── Avvio video (muted, per autoplay policy) ─────────────────
     video.play().catch(() => {});
   </script>
 
